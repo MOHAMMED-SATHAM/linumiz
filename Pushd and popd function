@@ -1,0 +1,117 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <limits.h>
+
+#define MAX_DIR_STACK 100
+
+typedef struct {
+    char *stack[MAX_DIR_STACK];
+    int top;
+} DirStack;
+
+void initStack(DirStack *stack) {
+    stack->top = -1;
+}
+
+int pushd(DirStack *stack, const char *dir) {
+    if (stack->top >= MAX_DIR_STACK - 1) {
+        fprintf(stderr, "Error: Directory stack overflow\n");
+        return -1;
+    }
+
+    char *cwd = getcwd(NULL, 0);
+    if (cwd == NULL) {
+        perror("getcwd");
+        return -1;
+    }
+
+    if (chdir(dir) != 0) {
+        perror("chdir");
+        free(cwd);
+        return -1;
+    }
+
+    stack->stack[++stack->top] = cwd;
+    return 0;
+}
+
+int popd(DirStack *stack) {
+    if (stack->top < 0) {
+        fprintf(stderr, "Error: Directory stack underflow\n");
+        return -1;
+    }
+
+    char *dir = stack->stack[stack->top--];
+    if (chdir(dir) != 0) {
+        perror("chdir");
+        free(dir);
+        return -1;
+    }
+
+    free(dir);
+    return 0;
+}
+
+void printStack(DirStack *stack) {
+    if (stack->top < 0) {
+        printf("Directory stack is empty\n");
+        return;
+    }
+
+    printf("Directory stack:\n");
+    for (int i = stack->top; i >= 0; --i) {
+        printf("%d: %s\n", stack->top - i, stack->stack[i]);
+    }
+}
+
+int main(int argc, char *argv[]) {
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s <command> [<directory>]\n", argv[0]);
+        fprintf(stderr, "Commands:\n");
+        fprintf(stderr, "  pushd <directory>\n");
+        fprintf(stderr, "  popd\n");
+        return 1;
+    }
+
+    static DirStack stack;
+    initStack(&stack);
+
+    if (strcmp(argv[1], "pushd") == 0) {
+        if (argc != 3) {
+            fprintf(stderr, "Usage: %s pushd <directory>\n", argv[0]);
+            return 1;
+        }
+        if (pushd(&stack, argv[2]) == 0) {
+            printf("Pushed %s to stack\n", argv[2]);
+            printStack(&stack);
+        }
+    } else if (strcmp(argv[1], "popd") == 0) {
+        if (argc != 2) {
+            fprintf(stderr, "Usage: %s popd\n", argv[0]);
+            return 1;
+        }
+        if (popd(&stack) == 0) {
+            printf("Popped from stack\n");
+            printStack(&stack);
+        }
+    } else {
+        fprintf(stderr, "Unknown command: %s\n", argv[1]);
+        return 1;
+    }
+
+    return 0;
+}
+
+
+
+
+
+
+/*gcc -o dir_stack dir_stack.c
+./dir_stack pushd /tmp
+./dir_stack pushd /var
+./dir_stack popd
+./dir_stack popd
+*/
